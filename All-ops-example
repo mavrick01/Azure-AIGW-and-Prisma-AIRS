@@ -1,0 +1,17 @@
+<policies>
+    <inbound>
+        <base />
+        <set-backend-service id="apim-generated-policy" backend-id="myai-openai-endpoint" />
+        <include-fragment fragment-id="panw-airs-scan-prompt" />
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+        <include-fragment fragment-id="panw-airs-scan-response" />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>
