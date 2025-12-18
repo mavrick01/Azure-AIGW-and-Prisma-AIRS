@@ -1,0 +1,62 @@
+<fragment>
+	<set-variable name="requestData" value="@{
+        var body = context.Request.Body.As<JObject>(preserveContent: true);
+        var model = body["model"]?.ToString() ?? "unknown-model";
+        var messages = (JArray)body["messages"];
+        var prompt = "";
+        if (body["messages"] != null && ((JArray)body["messages"]).Count > 0)
+        {
+            prompt = ((JArray)body["messages"]).Last["content"].ToString();
+        }
+        
+        return new JObject(
+            new JProperty("Model", model),
+            new JProperty("Prompt", prompt)
+        );
+    }" />
+	<send-request mode="new" response-variable-name="panwScanResponse" timeout="10" ignore-error="false">
+		<set-url>https://service.api.aisecurity.paloaltonetworks.com/v1/scan/sync/request</set-url>
+		<set-method>POST</set-method>
+		<set-header name="x-pan-token" exists-action="override">
+			<value>{{airs-api}}</value>
+		</set-header>
+		<set-header name="Content-Type" exists-action="override">
+			<value>application/json</value>
+		</set-header>
+		<set-body>@{
+            var data = (JObject)context.Variables["requestData"];
+            
+            // Access using array notation ["Key"]
+            string promptText = data["Prompt"].ToString();
+            string modelName = data["Model"].ToString();
+
+            var requestBody = new JObject(
+                new JProperty("tr_id", context.RequestId.ToString()), 
+                new JProperty("session_id", context.RequestId.ToString()),
+                new JProperty("ai_profile", new JObject(
+                    new JProperty("profile_name", "prompt-profile")
+                )),
+                new JProperty("metadata", new JObject(
+                    new JProperty("app_name", "Azure-APIM-Gateway"),
+                    new JProperty("user_ip", context.Request.IpAddress),
+                    new JProperty("ai_model", modelName),
+                    new JProperty("app_user", context.Request.Headers.GetValueOrDefault("x-user-id", "anonymous"))
+                )),
+                new JProperty("contents", new JArray(
+                    new JObject(
+                        new JProperty("prompt", promptText)
+                    )
+                ))
+            );
+            return requestBody.ToString();
+        }</set-body>
+	</send-request>
+	<choose>
+		<when condition="@(((IResponse)context.Variables["panwScanResponse"]).Body.As<JObject>()["action"].ToString() == "block")">
+			<return-response>
+				<set-status code="403" reason="Forbidden" />
+				<set-body>{ "error": "Prompt blocked by security scan" }</set-body>
+			</return-response>
+		</when>
+	</choose>
+</fragment>
