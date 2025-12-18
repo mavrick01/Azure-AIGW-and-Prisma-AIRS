@@ -1,0 +1,61 @@
+<fragment>
+	<set-variable name="fullOriginalResponse" value="@(context.Response.Body.As<string>(preserveContent: true))" />
+	<set-variable name="responseText" value="@{
+        var body = context.Response.Body.As<JObject>(preserveContent: true);
+        // Check if choices exist to avoid errors on empty responses
+        if (body["choices"] != null && ((JArray)body["choices"]).Count > 0) 
+        {
+            return body["choices"][0]["message"]["content"].ToString();
+        }
+        return "";
+    }" />
+	<send-request mode="new" response-variable-name="panwScanResponseOut" timeout="10" ignore-error="false">
+		<set-url>https://service.api.aisecurity.paloaltonetworks.com/v1/scan/sync/request</set-url>
+		<set-method>POST</set-method>
+		<set-header name="x-pan-token" exists-action="override">
+			<value>{{airs-api}}</value>
+		</set-header>
+		<set-header name="Content-Type" exists-action="override">
+			<value>application/json</value>
+		</set-header>
+		<set-body>@{
+            string responseText = (string)context.Variables["responseText"];            
+            var data = (JObject)context.Variables["requestData"];
+            string modelName = data["Model"].ToString();
+
+            var requestBody = new JObject(
+                new JProperty("tr_id", context.RequestId.ToString()),
+                new JProperty("session_id", context.RequestId.ToString()),
+                new JProperty("ai_profile", new JObject(
+                    new JProperty("profile_name", "response-profile")
+                )),
+                new JProperty("metadata", new JObject(
+                    new JProperty("app_name", "Azure-APIM-Gateway"),
+                    new JProperty("user_ip", context.Request.IpAddress),
+                    new JProperty("ai_model", modelName),
+                    new JProperty("app_user", context.Request.Headers.GetValueOrDefault("x-user-id", "anonymous"))
+                )),
+                new JProperty("contents", new JArray(
+                    new JObject(
+                        new JProperty("response", responseText) 
+                    )
+                ))
+            );
+            return requestBody.ToString();
+        }</set-body>
+	</send-request>
+	<choose>
+		<when condition="@(((IResponse)context.Variables["panwScanResponseOut"]).Body.As<JObject>()["action"].ToString() == "block")">
+			<return-response>
+				<set-status code="502" reason="Bad Gateway" />
+				<set-header name="Content-Type" exists-action="override">
+					<value>application/json</value>
+				</set-header>
+				<set-body>{ "error": "Response blocked by security scan", "details": "The AI response contained restricted content." }</set-body>
+			</return-response>
+		</when>
+		<otherwise>
+			<set-body>@((string)context.Variables["fullOriginalResponse"])</set-body>
+		</otherwise>
+	</choose>
+</fragment>
