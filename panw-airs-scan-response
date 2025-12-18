@@ -9,7 +9,7 @@
         }
         return "";
     }" />
-	<send-request mode="new" response-variable-name="panwScanResponseOut" timeout="10" ignore-error="false">
+	<send-request mode="new" response-variable-name="panwScanResponseOut" timeout="10" ignore-error="true">
 		<set-url>https://service.api.aisecurity.paloaltonetworks.com/v1/scan/sync/request</set-url>
 		<set-method>POST</set-method>
 		<set-header name="x-pan-token" exists-action="override">
@@ -44,18 +44,32 @@
             return requestBody.ToString();
         }</set-body>
 	</send-request>
-	<choose>
-		<when condition="@(((IResponse)context.Variables["panwScanResponseOut"]).Body.As<JObject>()["action"].ToString() == "block")">
+    <choose>
+		<when condition="@(context.Variables.ContainsKey("panwScanResponseOut") && 
+                       ((IResponse)context.Variables["panwScanResponseOut"]).StatusCode == 200)">
+            <choose>
+                <when condition="@(((IResponse)context.Variables["panwScanResponseOut"]).Body.As<JObject>()["action"].ToString() == "block")">
+                    <return-response>
+                        <set-status code="502" reason="Bad Gateway" />
+                        <set-header name="Content-Type" exists-action="override">
+                            <value>application/json</value>
+                        </set-header>
+                        <set-body>{ "error": "Response blocked by security scan", "details": "The AI response contained restricted content." }</set-body>
+                    </return-response>
+                </when>
+                <otherwise>
+                    <set-body>@((string)context.Variables["fullOriginalResponse"])</set-body>
+                </otherwise>
+            </choose>
+		</when>
+		<otherwise>
 			<return-response>
-				<set-status code="502" reason="Bad Gateway" />
+				<set-status code="503" reason="Service Unavailable" />
 				<set-header name="Content-Type" exists-action="override">
 					<value>application/json</value>
 				</set-header>
-				<set-body>{ "error": "Response blocked by security scan", "details": "The AI response contained restricted content." }</set-body>
+				<set-body>{ "error": "Security scanner unavailable. Response blocked for safety." }</set-body>
 			</return-response>
-		</when>
-		<otherwise>
-			<set-body>@((string)context.Variables["fullOriginalResponse"])</set-body>
 		</otherwise>
 	</choose>
 </fragment>
