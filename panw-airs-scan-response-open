@@ -18,6 +18,7 @@
 			<value>application/json</value>
 		</set-header>
 		<set-body>@{
+            string profileName = (string)context.Variables.GetValueOrDefault("currentResponseProfile", "response-profile");
             string responseText = (string)context.Variables["responseText"];            
             var data = (JObject)context.Variables["requestData"];
             string modelName = data["Model"].ToString();
@@ -26,7 +27,7 @@
                 new JProperty("tr_id", context.RequestId.ToString()),
                 new JProperty("session_id", context.RequestId.ToString()),
                 new JProperty("ai_profile", new JObject(
-                    new JProperty("profile_name", "response-profile")
+                    new JProperty("profile_name", profileName)
                 )),
                 new JProperty("metadata", new JObject(
                     new JProperty("app_name", "Azure-APIM-Gateway"),
