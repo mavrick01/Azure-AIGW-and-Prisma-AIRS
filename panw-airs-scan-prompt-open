@@ -24,6 +24,7 @@
 			<value>application/json</value>
 		</set-header>
 		<set-body>@{
+            string profileName = (string)context.Variables.GetValueOrDefault("currentPromptProfile", "prompt-profile");
             var data = (JObject)context.Variables["requestData"];
             
             // Access using array notation ["Key"]
@@ -34,7 +35,7 @@
                 new JProperty("tr_id", context.RequestId.ToString()), 
                 new JProperty("session_id", context.RequestId.ToString()),
                 new JProperty("ai_profile", new JObject(
-                    new JProperty("profile_name", "prompt-profile")
+                    new JProperty("profile_name", profileName)
                 )),
                 new JProperty("metadata", new JObject(
                     new JProperty("app_name", "Azure-APIM-Gateway"),
