@@ -1,17 +1,30 @@
 <policies>
     <inbound>
         <base />
-        <set-backend-service id="apim-generated-policy" backend-id="myai-openai-endpoint" />
-        <include-fragment fragment-id="panw-airs-scan-prompt" />
+        <set-backend-service id="apim-generated-policy" backend-id="mygemini-openai-endpoint" />
+        <set-variable name="currentPromptProfile" value="example-profile" />
+        <include-fragment fragment-id="panw-airs-scan-prompt-open" />
     </inbound>
     <backend>
         <base />
     </backend>
     <outbound>
         <base />
+        <set-variable name="currentResponseProfile" value="example-profile" />
         <include-fragment fragment-id="panw-airs-scan-response" />
     </outbound>
     <on-error>
         <base />
+        <choose>
+            <when condition="@(context.LastError.Source == "send-request")">
+                <return-response>
+                    <set-status code="503" reason="Service Unavailable" />
+                    <set-header name="Content-Type" exists-action="override">
+                        <value>application/json</value>
+                    </set-header>
+                    <set-body>{ "error": "Security scanner unavailable. Request blocked for safety." }</set-body>
+                </return-response>
+            </when>
+        </choose>
     </on-error>
 </policies>
